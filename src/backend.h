@@ -70,7 +70,10 @@ public:
     // seconds in the accent, unlike problems, which wait to be dismissed.
     Q_INVOKABLE void showNotice(const QString &notice);
     // Selects `name` the next time the folder loads (after file work).
-    Q_INVOKABLE void expectSelection(const QString &name) { m_pendingSelection = name; }
+    Q_INVOKABLE void expectSelection(const QString &name) {
+        m_pendingSelection = name;
+        m_leftBehind = false;
+    }
     QVariantMap details() const;
     Q_INVOKABLE void describe(const QVariantMap &item, bool inTrash = false);
     // The system's own name for a type ("JPEG image"), in the language of
@@ -79,6 +82,9 @@ public:
     // The item to select once the folder has loaded (where we came from, or
     // what "Show in folder" asked for); empty means the first item.
     Q_INVOKABLE QString takeSelection();
+    // Whether that item is the folder just left, going up or back, rather
+    // than one picked to be shown.
+    Q_INVOKABLE bool leftBehind() const { return m_leftBehind; }
     // The path as it's shown for editing (~ for home), going to a typed
     // path (a folder, or a file to select in its folder; ~ works; or a
     // server's address, connecting to it), and completing the last part of
@@ -165,6 +171,7 @@ private:
     QTimer m_noticeTimer;
     QString m_busy;
     QString m_pendingSelection;
+    bool m_leftBehind = false;
     bool m_choosing = false;
     Plugins *m_plugins = nullptr;
     Mounter m_mounter;

@@ -281,9 +281,9 @@ FocusScope {
         function onLoaded() {
             if (!view.item)
                 return
+            const leftBehind = backend.leftBehind()
             const pending = backend.takeSelection()
-            const left = pane.loadedPath
-            const same = backend.folder.path === left
+            const same = backend.folder.path === pane.loadedPath
             pane.loadedPath = backend.folder.path
             const row = backend.folder.indexOfPath(pane.lastPath)
             // A file chooser answering with the folder shown (saving, or
@@ -293,10 +293,8 @@ FocusScope {
             // folder shown. An item picked to show is still shown.
             const answersHere = !!chooser && chooser.mode !== "open"
             // Going up or back names the folder just left; anything else
-            // pending was picked. By path, as a picked item can share its
-            // name.
-            const here = backend.folder.path
-            const unpicked = !pending || left === (here === "/" ? "/" : here + "/") + pending
+            // pending was picked.
+            const unpicked = !pending || leftBehind
             if (pending || !same)
                 pane.cursorLetGo = false
             if (answersHere && !same && unpicked) {

@@ -6564,6 +6564,13 @@ private slots:
         QTRY_COMPARE(paneOf(window)->path(), home.path());
         QTRY_VERIFY(listed(window).contains("pick"));
         QCOMPARE(cursor(window), QString());
+        // Nor on going back to a folder that isn't the one just left's.
+        paneOf(window)->navigate(home.filePath("pick/inner"));
+        QTRY_COMPARE(listed(window), QStringList({"pick"}));
+        paneOf(window)->back();
+        QTRY_COMPARE(paneOf(window)->path(), home.path());
+        QTRY_VERIFY(listed(window).contains("pick"));
+        QCOMPARE(cursor(window), QString());
         QTest::keyClick(window, Qt::Key_Return);
         QTest::keyClick(window, Qt::Key_Escape);
         QVERIFY(replies.isEmpty());
