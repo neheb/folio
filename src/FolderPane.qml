@@ -292,7 +292,11 @@ FocusScope {
             // contents beside it in the columns, while the answer is the
             // folder shown. An item picked to show is still shown.
             const answersHere = !!chooser && chooser.mode !== "open"
-            const unpicked = !pending || pending === left.slice(left.lastIndexOf("/") + 1)
+            // Going up or back names the folder just left; anything else
+            // pending was picked. By path, as a picked item can share its
+            // name.
+            const here = backend.folder.path
+            const unpicked = !pending || left === (here === "/" ? "/" : here + "/") + pending
             if (pending || !same)
                 pane.cursorLetGo = false
             if (answersHere && !same && unpicked) {

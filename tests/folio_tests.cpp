@@ -6530,6 +6530,16 @@ private slots:
         QCOMPARE(cursor(window), QString());
         QTest::keyClick(window, Qt::Key_Down);
         QTRY_COMPARE(cursor(window), home.filePath("pick/inner"));
+        // An item picked to be shown is still shown, though it has the
+        // name of the folder just left.
+        QDir(home.path()).mkpath("pick/inner/pick");
+        paneOf(window)->showItem(home.filePath("pick/inner/pick"));
+        QTRY_COMPARE(paneOf(window)->path(), home.filePath("pick/inner"));
+        QTRY_COMPARE(cursor(window), home.filePath("pick/inner/pick"));
+        paneOf(window)->goUp();
+        QTRY_COMPARE(paneOf(window)->path(), home.filePath("pick"));
+        QTRY_COMPARE(listed(window), QStringList({"inner"}));
+        QCOMPARE(cursor(window), QString());
         QTest::keyClick(window, Qt::Key_Return, Qt::ControlModifier);
         QCOMPARE(replies, (QList<std::pair<uint, QStringList>>{{0, {uri("pick")}}}));
 
