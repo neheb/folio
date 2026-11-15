@@ -282,12 +282,23 @@ FocusScope {
             if (!view.item)
                 return
             const pending = backend.takeSelection()
-            const same = backend.folder.path === pane.loadedPath
+            const left = pane.loadedPath
+            const same = backend.folder.path === left
             pane.loadedPath = backend.folder.path
             const row = backend.folder.indexOfPath(pane.lastPath)
+            // A file chooser answering with the folder shown (saving, or
+            // picking a folder) arrives with no cursor: one on a subfolder,
+            // the first or the one just left, would look chosen, its
+            // contents beside it in the columns, while the answer is the
+            // folder shown. An item picked to show is still shown.
+            const answersHere = !!chooser && chooser.mode !== "open"
+            const unpicked = !pending || pending === left.slice(left.lastIndexOf("/") + 1)
             if (pending || !same)
                 pane.cursorLetGo = false
-            if (pending)
+            if (answersHere && !same && unpicked) {
+                backend.folder.selectOnly(-1)
+                view.item.letGo()
+            } else if (pending)
                 view.item.select(backend.folder.indexOf(pending), false)
             else if (!same)
                 view.item.select(-1, false)
