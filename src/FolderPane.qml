@@ -292,12 +292,12 @@ FocusScope {
             // contents beside it in the columns, while the answer is the
             // folder shown. An item picked to show is still shown.
             const answersHere = !!chooser && chooser.mode !== "open"
-            // Going up or back names the folder just left; anything else
-            // pending was picked.
-            const unpicked = !pending || leftBehind
+            // Going up or back names the folder just left, whether or not it
+            // had loaded; anything else pending was picked.
+            const arrived = pending ? leftBehind : !same
             if (pending || !same)
                 pane.cursorLetGo = false
-            if (answersHere && !same && unpicked) {
+            if (answersHere && arrived) {
                 backend.folder.selectOnly(-1)
                 view.item.letGo()
             } else if (pending)

@@ -6571,6 +6571,13 @@ private slots:
         QTRY_COMPARE(paneOf(window)->path(), home.path());
         QTRY_VERIFY(listed(window).contains("pick"));
         QCOMPARE(cursor(window), QString());
+        // Nor on going back before the folder left had even loaded.
+        QDir(home.path()).mkpath("pick/unseen");
+        paneOf(window)->navigate(home.filePath("pick/unseen"));
+        paneOf(window)->back();
+        QTRY_VERIFY(paneOf(window)->folder()->path() == home.path() && !paneOf(window)->folder()->loading());
+        QTest::qWait(100);
+        QCOMPARE(cursor(window), QString());
         QTest::keyClick(window, Qt::Key_Return);
         QTest::keyClick(window, Qt::Key_Escape);
         QVERIFY(replies.isEmpty());
