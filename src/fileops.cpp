@@ -1375,6 +1375,22 @@ QStringList FileOps::trashDirs() {
     return dirs;
 }
 
+QStringList FileOps::trashWatchPaths(const QStringList &trashDirs) {
+    QStringList paths;
+    for (const QString &dir : trashDirs)
+        paths << dir + "/files";
+    const QString uid = QString::number(getuid());
+    for (const QStorageInfo &volume : QStorageInfo::mountedVolumes()) {
+        const QString root = volume.rootPath();
+        if (trashDirs.contains(root + "/.Trash-" + uid) || trashDirs.contains(root + "/.Trash/" + uid))
+            continue;
+        // Only a drive that can be written to at the top gets a trash there.
+        if (QFileInfo(root).isWritable() && !paths.contains(root))
+            paths << root;
+    }
+    return paths;
+}
+
 bool FileOps::inTrash(const QString &path) const {
     const QString clean = QDir::cleanPath(path);
     for (const QString &dir : trashDirs())

@@ -1582,6 +1582,26 @@ private slots:
         QCOMPARE(FileOps::infoFileFor(entries.at(2).path), home + "/info/b.txt.trashinfo");
         // Left before it's done, it lists nothing.
         QVERIFY(FolderModel::listTrash({home, other}, false, "name", [] { return true; }).isEmpty());
+
+        // A search of the trash finds what's in every drive's, inside
+        // trashed folders too, up to the limit in all.
+        write(other + "/files/c/a inside.txt", "x");
+        write(home + "/files/abc.txt", "x");
+        const auto found = FolderModel::searchTrash({home, other}, "a", false, "name");
+        QStringList paths;
+        for (const auto &e : found)
+            paths << e.path;
+        QStringList expected{other + "/files/a.txt", other + "/files/c/a inside.txt", home + "/files/abc.txt"};
+        paths.sort();
+        expected.sort();
+        QCOMPARE(paths, expected);
+        QCOMPARE(FolderModel::searchTrash({home, other}, "a", false, "name", {}, 2).size(), 2);
+
+        // Each trash's files folder is watched while Trash is open, the
+        // empty ones too, so what's trashed there later shows.
+        const QStringList watched = FileOps::trashWatchPaths({home, other});
+        QVERIFY(watched.contains(home + "/files"));
+        QVERIFY(watched.contains(other + "/files"));
     }
 
     void folderSortsFiveWays()
