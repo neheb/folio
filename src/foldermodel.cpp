@@ -1,4 +1,5 @@
 #include "foldermodel.h"
+#include "fileops.h"
 
 #include <QCache>
 #include <QCollator>
@@ -278,6 +279,8 @@ QVector<FolderModel::Entry> FolderModel::list(const QString &path, bool showHidd
         // Recents are always most recently used first; that's what they're for.
         return listRecent(recentFile(), showHidden, 200, stop);
     }
+    if (isTrash(path))
+        return listTrash(FileOps::trashDirs(), showHidden, sort, stop, locale);
     QVector<Entry> entries;
     QDir dir(path);
     if (!dir.exists()) {
@@ -297,6 +300,28 @@ QVector<FolderModel::Entry> FolderModel::list(const QString &path, bool showHidd
         if (stop && stop())
             return {};
         entries.push_back(entryFor(it.nextFileInfo(), mimes));
+    }
+    sortEntries(entries, sort, locale);
+    return entries;
+}
+
+bool FolderModel::isTrash(const QString &path) {
+    return path == QDir::cleanPath(FileOps::homeTrash() + "/files");
+}
+
+QVector<FolderModel::Entry> FolderModel::listTrash(const QStringList &trashDirs, bool showHidden,
+                                                   const QString &sort, const std::function<bool()> &stop,
+                                                   const QLocale &locale) {
+    // A drive's trash is there only once something on it has been trashed,
+    // and one that can't be read is left out rather than hiding the rest.
+    QVector<Entry> entries;
+    QMimeDatabase mimes;
+    for (const QString &dir : trashDirs) {
+        for (QDirIterator it(dir + "/files", entryFilters(showHidden)); it.hasNext();) {
+            if (stop && stop())
+                return {};
+            entries.push_back(entryFor(it.nextFileInfo(), mimes));
+        }
     }
     sortEntries(entries, sort, locale);
     return entries;
@@ -512,6 +537,18 @@ void FolderModel::reload() {
                 m_selected = still;
                 emit selectionChanged();
             }
+        }
+        // The trash lists other drives' trash folders too: those with
+        // something in them are watched as well.
+        if (isTrash(m_path)) {
+            QStringList folders;
+            for (const Entry &e : m_entries) {
+                const QString folder = QFileInfo(e.path).absolutePath();
+                if (folder != m_path && !folders.contains(folder) && !m_watcher.directories().contains(folder))
+                    folders << folder;
+            }
+            if (!folders.isEmpty())
+                m_watcher.addPaths(folders);
         }
         setError(error);
         setLoading(false);

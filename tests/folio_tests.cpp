@@ -1555,6 +1555,35 @@ private slots:
         QVERIFY(FolderModel::listRecent(dir.filePath("recently-used.xbel"), false, 200, [&] { return ++checks > 3; }).size() == 1);
     }
 
+    void trashListsEveryDrivesTrash()
+    {
+        // What was deleted on another drive is in that drive's own trash;
+        // Trash lists it with the home trash's items, sorted together
+        // (folders first, as anywhere).
+        QTemporaryDir data, drive;
+        const auto restore = dataHomeAt(data.path());
+        const QString home = data.filePath("Trash");
+        const QString other = drive.filePath(".Trash-" + QString::number(getuid()));
+        for (const QString &folder : {home + "/files", home + "/info", other + "/files", other + "/info"})
+            QDir().mkpath(folder);
+        write(home + "/files/b.txt", "x");
+        write(other + "/files/a.txt", "x");
+        QDir().mkpath(other + "/files/c");
+        write(other + "/info/a.txt.trashinfo", "[Trash Info]\nPath=/elsewhere/a.txt\n");
+        QVERIFY(FolderModel::isTrash(home + "/files"));
+        QVERIFY(!FolderModel::isTrash(other + "/files"));
+        // A drive with no trash yet is passed over.
+        const auto entries = FolderModel::listTrash({home, other, drive.filePath(".Trash/1000")}, false, "name");
+        QCOMPARE(entries.size(), 3);
+        QCOMPARE(entries.at(0).path, other + "/files/c");
+        QCOMPARE(entries.at(1).path, other + "/files/a.txt");
+        QCOMPARE(entries.at(2).path, home + "/files/b.txt");
+        // Each is found where it is, with its note, so it can be restored.
+        QCOMPARE(FileOps::infoFileFor(entries.at(2).path), home + "/info/b.txt.trashinfo");
+        // Left before it's done, it lists nothing.
+        QVERIFY(FolderModel::listTrash({home, other}, false, "name", [] { return true; }).isEmpty());
+    }
+
     void folderSortsFiveWays()
     {
         QVector<FolderModel::Entry> e(4);

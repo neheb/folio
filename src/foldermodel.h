@@ -137,6 +137,12 @@ public:
     // whose names contain `query` (ignoring case), or all of them.
     static bool isPluginView(const QString &path) { return path.startsWith("plugin:") && !path.contains('/'); }
     static QVector<Entry> listItems(const QVariantList &items, const QString &query = {});
+    // The trash: the home trash's files folder, which lists what's in every
+    // trash, each mounted drive's own too (see FileOps::trashDirs()), so
+    // what was deleted on another drive can be seen, restored and emptied.
+    static bool isTrash(const QString &path);
+    static QVector<Entry> listTrash(const QStringList &trashDirs, bool showHidden, const QString &sort,
+                                    const std::function<bool()> &stop = {}, const QLocale &locale = QLocale());
     // Recents and plugins' views: lists of their own, not folders.
     static bool isView(const QString &path) { return path == recentPath() || isPluginView(path); }
     static QString kindForMime(const QString &mime);
