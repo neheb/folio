@@ -567,14 +567,24 @@ void FolderModel::reload() {
             }
         }
         // The trash lists every drive's trash, so it watches each, empty or
-        // not, and the top of each drive that has none yet. Something may
-        // have arrived in one before it was watched: it's read once more.
-        QStringList unwatched;
-        for (const QString &folder : listing.watch)
-            if (folder != m_path && !m_watcher.directories().contains(folder))
-                unwatched << folder;
-        if (!unwatched.isEmpty() && m_watcher.addPaths(unwatched).size() < unwatched.size())
-            m_debounce.start();
+        // not, and where on each drive without one a trash is made. What
+        // it no longer needs to watch (a drive's top, once the drive has a
+        // trash) it stops watching. Something may have arrived in a folder
+        // before it was watched: the trash is read once more.
+        if (isTrash(m_path)) {
+            const QStringList watched = m_watcher.directories();
+            QStringList stale, unwatched;
+            for (const QString &folder : watched)
+                if (folder != m_path && !listing.watch.contains(folder))
+                    stale << folder;
+            for (const QString &folder : listing.watch)
+                if (folder != m_path && !watched.contains(folder))
+                    unwatched << folder;
+            if (!stale.isEmpty())
+                m_watcher.removePaths(stale);
+            if (!unwatched.isEmpty() && m_watcher.addPaths(unwatched).size() < unwatched.size())
+                m_debounce.start();
+        }
         setError(error);
         setLoading(false);
         emit loaded();
