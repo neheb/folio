@@ -1572,6 +1572,11 @@ private slots:
         const auto found = FolderModel::listTrash(dirs, "a", false, "name");
         QCOMPARE(found.size(), 1);
         QCOMPARE(found.at(0).path, other.filePath("files/a.txt"));
+        // A search's limit is for every trash together, and a listing left
+        // once the first trash is read reads no other.
+        QCOMPARE(FolderModel::listTrash(dirs, "txt", false, "name", {}, 1).size(), 1);
+        int checks = 0;
+        QVERIFY(FolderModel::listTrash(dirs, {}, false, "name", [&] { return ++checks > 2; }).isEmpty());
     }
 
     void folderSortsFiveWays()

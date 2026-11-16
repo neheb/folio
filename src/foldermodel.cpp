@@ -310,11 +310,18 @@ bool FolderModel::isTrash(const QString &path) {
 
 QVector<FolderModel::Entry> FolderModel::listTrash(const QStringList &trashDirs, const QString &query, bool showHidden,
                                                    const QString &sort, const std::function<bool()> &stop,
-                                                   const QLocale &locale, const QStringList &filter) {
+                                                   int limit, const QLocale &locale, const QStringList &filter) {
+    // A search's limit is for every trash together, and a listing left
+    // behind stops before it reads another drive.
     QVector<Entry> entries;
-    for (const QString &dir : trashDirs)
+    for (const QString &dir : trashDirs) {
+        if (stop && stop())
+            return {};
+        if (!query.isEmpty() && entries.size() >= limit)
+            break;
         entries += query.isEmpty() ? list(dir + "/files", showHidden, sort, nullptr, stop, locale)
-                                   : search(dir + "/files", query, showHidden, sort, stop, 1000, locale, filter);
+                                   : search(dir + "/files", query, showHidden, sort, stop, limit - entries.size(), locale, filter);
+    }
     sortEntries(entries, sort, locale);
     return entries;
 }
@@ -548,7 +555,7 @@ void FolderModel::reload() {
         // off the window's thread.
         const QStringList trashDirs = isTrash(path) ? FileOps::trashDirs() : QStringList();
         auto entries = isPluginView(path) ? listItems(items, query)
-                     : isTrash(path) ? listTrash(trashDirs, query, showHidden, sort, overtaken, locale, filter)
+                     : isTrash(path) ? listTrash(trashDirs, query, showHidden, sort, overtaken, 1000, locale, filter)
                      : query.isEmpty() || path == recentPath() ? list(path, showHidden, sort, &error, overtaken, locale)
                      : search(path, query, showHidden, sort, overtaken, 1000, locale, filter);
         if (!isPluginView(path))
