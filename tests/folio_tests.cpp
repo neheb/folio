@@ -1557,51 +1557,21 @@ private slots:
 
     void trashListsEveryDrivesTrash()
     {
-        // What was deleted on another drive is in that drive's own trash;
-        // Trash lists it with the home trash's items, sorted together
-        // (folders first, as anywhere).
-        QTemporaryDir data, drive;
-        const auto restore = dataHomeAt(data.path());
-        const QString home = data.filePath("Trash");
-        const QString other = drive.filePath(".Trash-" + QString::number(getuid()));
-        for (const QString &folder : {home + "/files", home + "/info", other + "/files", other + "/info"})
-            QDir().mkpath(folder);
-        write(home + "/files/b.txt", "x");
-        write(other + "/files/a.txt", "x");
-        QDir().mkpath(other + "/files/c");
-        write(other + "/info/a.txt.trashinfo", "[Trash Info]\nPath=/elsewhere/a.txt\n");
-        QVERIFY(FolderModel::isTrash(home + "/files"));
-        QVERIFY(!FolderModel::isTrash(other + "/files"));
-        // A drive with no trash yet is passed over.
-        const auto entries = FolderModel::listTrash({home, other, drive.filePath(".Trash/1000")}, false, "name");
-        QCOMPARE(entries.size(), 3);
-        QCOMPARE(entries.at(0).path, other + "/files/c");
-        QCOMPARE(entries.at(1).path, other + "/files/a.txt");
-        QCOMPARE(entries.at(2).path, home + "/files/b.txt");
-        // Each is found where it is, with its note, so it can be restored.
-        QCOMPARE(FileOps::infoFileFor(entries.at(2).path), home + "/info/b.txt.trashinfo");
-        // Left before it's done, it lists nothing.
-        QVERIFY(FolderModel::listTrash({home, other}, false, "name", [] { return true; }).isEmpty());
-
-        // A search of the trash finds what's in every drive's, inside
-        // trashed folders too, up to the limit in all.
-        write(other + "/files/c/a inside.txt", "x");
-        write(home + "/files/abc.txt", "x");
-        const auto found = FolderModel::searchTrash({home, other}, "a", false, "name");
-        QStringList paths;
-        for (const auto &e : found)
-            paths << e.path;
-        QStringList expected{other + "/files/a.txt", other + "/files/c/a inside.txt", home + "/files/abc.txt"};
-        paths.sort();
-        expected.sort();
-        QCOMPARE(paths, expected);
-        QCOMPARE(FolderModel::searchTrash({home, other}, "a", false, "name", {}, 2).size(), 2);
-
-        // Each trash's files folder is watched while Trash is open, the
-        // empty ones too, so what's trashed there later shows.
-        const QStringList watched = FileOps::trashWatchPaths({home, other});
-        QVERIFY(watched.contains(home + "/files"));
-        QVERIFY(watched.contains(other + "/files"));
+        // Another drive's trash is listed and searched with the home one's,
+        // sorted together; a drive without one is passed over.
+        QTemporaryDir home, other;
+        QDir().mkpath(home.filePath("files"));
+        QDir().mkpath(other.filePath("files"));
+        write(home.filePath("files/b.txt"), "x");
+        write(other.filePath("files/a.txt"), "x");
+        const QStringList dirs{home.path(), other.path(), other.filePath("none")};
+        const auto entries = FolderModel::listTrash(dirs, {}, false, "name");
+        QCOMPARE(entries.size(), 2);
+        QCOMPARE(entries.at(0).path, other.filePath("files/a.txt"));
+        QCOMPARE(entries.at(1).path, home.filePath("files/b.txt"));
+        const auto found = FolderModel::listTrash(dirs, "a", false, "name");
+        QCOMPARE(found.size(), 1);
+        QCOMPARE(found.at(0).path, other.filePath("files/a.txt"));
     }
 
     void folderSortsFiveWays()

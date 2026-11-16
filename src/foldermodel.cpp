@@ -279,8 +279,6 @@ QVector<FolderModel::Entry> FolderModel::list(const QString &path, bool showHidd
         // Recents are always most recently used first; that's what they're for.
         return listRecent(recentFile(), showHidden, 200, stop);
     }
-    if (isTrash(path))
-        return listTrash(FileOps::trashDirs(), showHidden, sort, stop, locale);
     QVector<Entry> entries;
     QDir dir(path);
     if (!dir.exists()) {
@@ -309,36 +307,13 @@ bool FolderModel::isTrash(const QString &path) {
     return path == QDir::cleanPath(FileOps::homeTrash() + "/files");
 }
 
-QVector<FolderModel::Entry> FolderModel::listTrash(const QStringList &trashDirs, bool showHidden,
+QVector<FolderModel::Entry> FolderModel::listTrash(const QStringList &trashDirs, const QString &query, bool showHidden,
                                                    const QString &sort, const std::function<bool()> &stop,
-                                                   const QLocale &locale) {
-    // A drive's trash is there only once something on it has been trashed,
-    // and one that can't be read is left out rather than hiding the rest.
+                                                   const QLocale &locale, const QStringList &filter) {
     QVector<Entry> entries;
-    QMimeDatabase mimes;
-    for (const QString &dir : trashDirs) {
-        for (QDirIterator it(dir + "/files", entryFilters(showHidden)); it.hasNext();) {
-            if (stop && stop())
-                return {};
-            entries.push_back(entryFor(it.nextFileInfo(), mimes));
-        }
-    }
-    sortEntries(entries, sort, locale);
-    return entries;
-}
-
-QVector<FolderModel::Entry> FolderModel::searchTrash(const QStringList &trashDirs, const QString &query,
-                                                     bool showHidden, const QString &sort,
-                                                     const std::function<bool()> &stop, int limit,
-                                                     const QLocale &locale, const QStringList &filter) {
-    QVector<Entry> entries;
-    for (const QString &dir : trashDirs) {
-        if (entries.size() >= limit)
-            break;
-        entries += search(dir + "/files", query, showHidden, sort, stop, limit - entries.size(), locale, filter);
-        if (stop && stop())
-            return {};
-    }
+    for (const QString &dir : trashDirs)
+        entries += query.isEmpty() ? list(dir + "/files", showHidden, sort, nullptr, stop, locale)
+                                   : search(dir + "/files", query, showHidden, sort, stop, 1000, locale, filter);
     sortEntries(entries, sort, locale);
     return entries;
 }
@@ -517,16 +492,6 @@ int FolderModel::itemCount(const QString &folder, bool showHidden) {
     return count;
 }
 
-namespace {
-// What a background listing hands back: its entries, why there are none,
-// and what else to watch for changes (for the trash, other drives').
-struct Listing {
-    QVector<FolderModel::Entry> entries;
-    QString error;
-    QStringList watch;
-};
-}
-
 void FolderModel::reload() {
     if (m_path.isEmpty())
         return;
@@ -542,15 +507,13 @@ void FolderModel::reload() {
     const QStringList filter = m_filter;
     *m_latest = generation;
     const auto latest = m_latest;
-    auto *watcher = new QFutureWatcher<Listing>(this);
+    auto *watcher = new QFutureWatcher<QPair<QVector<Entry>, QString>>(this);
     connect(watcher, &QFutureWatcherBase::finished, this, [this, watcher, generation] {
         watcher->deleteLater();
         if (generation != m_generation)
             return; // A newer listing replaced this one while it ran.
         m_staleClear.stop();
-        const Listing listing = watcher->result();
-        const QVector<Entry> &entries = listing.entries;
-        const QString &error = listing.error;
+        const auto [entries, error] = watcher->result();
         // Unchanged (the usual case after showing a remembered listing):
         // leave the items alone, and only fill in folder counts still missing.
         const bool same = error == m_error && !m_entries.isEmpty() && sameListing(m_entries, entries);
@@ -566,24 +529,16 @@ void FolderModel::reload() {
                 emit selectionChanged();
             }
         }
-        // The trash lists every drive's trash, so it watches each, empty or
-        // not, and where on each drive without one a trash is made. What
-        // it no longer needs to watch (a drive's top, once the drive has a
-        // trash) it stops watching. Something may have arrived in a folder
-        // before it was watched: the trash is read once more.
-        if (isTrash(m_path)) {
-            const QStringList watched = m_watcher.directories();
-            QStringList stale, unwatched;
-            for (const QString &folder : watched)
-                if (folder != m_path && !listing.watch.contains(folder))
-                    stale << folder;
-            for (const QString &folder : listing.watch)
-                if (folder != m_path && !watched.contains(folder))
-                    unwatched << folder;
-            if (!stale.isEmpty())
-                m_watcher.removePaths(stale);
-            if (!unwatched.isEmpty() && m_watcher.addPaths(unwatched).size() < unwatched.size())
-                m_debounce.start();
+        // Another drive's trash is watched once something is seen in it.
+        if (isTrash(m_path) && m_query.isEmpty()) {
+            QStringList folders;
+            for (const Entry &e : entries)
+                if (const QString folder = QFileInfo(e.path).absolutePath(); !folders.contains(folder))
+                    folders << folder;
+            for (const QString &watched : m_watcher.directories())
+                folders.removeAll(watched);
+            if (!folders.isEmpty())
+                m_watcher.addPaths(folders);
         }
         setError(error);
         setLoading(false);
@@ -593,25 +548,17 @@ void FolderModel::reload() {
         countFolders(generation);
     });
     watcher->setFuture(QtConcurrent::run([path, showHidden, sort, query, items, filter, latest, generation, locale] {
-        Listing listing;
-        QString &error = listing.error;
-        auto &entries = listing.entries;
+        QString error;
         const auto overtaken = [&] { return *latest != generation; };
-        if (isTrash(path)) {
-            // Finding the drives' trash folders looks over every mount, so
-            // it's done here, off the window's thread.
-            const QStringList dirs = FileOps::trashDirs();
-            entries = query.isEmpty() ? listTrash(dirs, showHidden, sort, overtaken, locale)
-                                      : searchTrash(dirs, query, showHidden, sort, overtaken, 1000, locale, filter);
-            listing.watch = FileOps::trashWatchPaths(dirs);
-        } else {
-            entries = isPluginView(path) ? listItems(items, query)
-                    : query.isEmpty() || path == recentPath() ? list(path, showHidden, sort, &error, overtaken, locale)
-                    : search(path, query, showHidden, sort, overtaken, 1000, locale, filter);
-        }
+        // Finding the drives' trash looks over every mount, so it's done here,
+        // off the window's thread.
+        auto entries = isPluginView(path) ? listItems(items, query)
+                     : isTrash(path) ? listTrash(FileOps::trashDirs(), query, showHidden, sort, overtaken, locale, filter)
+                     : query.isEmpty() || path == recentPath() ? list(path, showHidden, sort, &error, overtaken, locale)
+                     : search(path, query, showHidden, sort, overtaken, 1000, locale, filter);
         if (!isPluginView(path))
             entries.removeIf([&](const Entry &entry) { return !fits(filter, entry); });
-        return listing;
+        return qMakePair(entries, error);
     }));
 }
 

@@ -1375,37 +1375,6 @@ QStringList FileOps::trashDirs() {
     return dirs;
 }
 
-QStringList FileOps::trashWatchPaths(const QStringList &trashDirs) {
-    QStringList paths;
-    for (const QString &dir : trashDirs)
-        paths << dir + "/files";
-    // A drive's first trash is made a folder at a time (.Trash-<uid>, then
-    // its files), so on each drive without one the deepest folder of it
-    // there is so far is watched: what's made next is made in it.
-    const QString uid = QString::number(getuid());
-    for (const QStorageInfo &volume : QStorageInfo::mountedVolumes()) {
-        const QString root = volume.rootPath();
-        const QString own = root + "/.Trash-" + uid, shared = root + "/.Trash";
-        if (trashDirs.contains(own) || trashDirs.contains(shared + "/" + uid))
-            continue;
-        QStringList deepest;
-        if (QFileInfo(own).isDir())
-            deepest << own;
-        else if (QFileInfo(root).isWritable())
-            deepest << root;
-        // The drive's shared trash, which only its administrator makes, has
-        // a folder for each user that uses it.
-        if (QFileInfo(shared + "/" + uid).isDir())
-            deepest << shared + "/" + uid;
-        else if (QFileInfo(shared).isDir())
-            deepest << shared;
-        for (const QString &path : deepest)
-            if (!paths.contains(path))
-                paths << path;
-    }
-    return paths;
-}
-
 bool FileOps::inTrash(const QString &path) const {
     const QString clean = QDir::cleanPath(path);
     for (const QString &dir : trashDirs())
