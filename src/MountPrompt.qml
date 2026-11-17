@@ -5,13 +5,15 @@ import QtQuick.Layouts
 // aren't set up, or its question about a server it can't vouch for (a key
 // seen for the first time, a certificate that can't be verified), put to
 // the user in the window. The wording comes from GVfs, already translated.
+// Or a host's shared folders (smb://nas), to pick the one to open.
 FolioDialog {
     id: prompt
 
     readonly property var mounter: backend.mounter
-    readonly property bool question: mounter.choices.length > 0
+    readonly property bool picking: mounter.picking
+    readonly property bool question: mounter.choices.length > 0 && !picking
 
-    title: question ? qsTr("Check the server") : qsTr("Sign in")
+    title: picking ? qsTr("Shared folders") : question ? qsTr("Check the server") : qsTr("Sign in")
     cardWidth: 600
     spacing: 18
     visible: mounter.asking
@@ -23,7 +25,7 @@ FolioDialog {
     // goes to them and nothing is answered by a stray Enter.
     onVisibleChanged: {
         password.text = ""
-        if (visible && question) {
+        if (visible && (question || picking)) {
             forceActiveFocus()
         } else if (visible) {
             user.text = mounter.user
@@ -52,17 +54,34 @@ FolioDialog {
 
     PlainField {
         id: user
-        visible: !prompt.question
+        visible: !prompt.question && !prompt.picking
         Layout.fillWidth: true
         placeholderText: qsTr("User")
     }
     PlainField {
         id: password
-        visible: !prompt.question
+        visible: !prompt.question && !prompt.picking
         Layout.fillWidth: true
         placeholderText: qsTr("Password")
         echoMode: TextInput.Password
         onAccepted: prompt.submit()
+    }
+
+    // A host can share many folders, so they wrap rather than run off the
+    // card.
+    Flow {
+        visible: prompt.picking
+        Layout.fillWidth: true
+        spacing: 10
+        Repeater {
+            model: prompt.picking ? prompt.mounter.choices : []
+            PlainButton {
+                required property string modelData
+                required property int index
+                text: modelData
+                onClicked: prompt.mounter.choose(index)
+            }
+        }
     }
 
     RowLayout {
@@ -72,7 +91,7 @@ FolioDialog {
         // A question's own answers, none of them the default: going ahead
         // with a server that couldn't be checked takes a deliberate click.
         Repeater {
-            model: prompt.mounter.choices
+            model: prompt.question ? prompt.mounter.choices : []
             PlainButton {
                 required property string modelData
                 required property int index
@@ -86,7 +105,7 @@ FolioDialog {
             onClicked: prompt.mounter.cancel()
         }
         PlainButton {
-            visible: !prompt.question
+            visible: !prompt.question && !prompt.picking
             text: qsTr("Connect")
             primary: true
             onClicked: prompt.submit()
