@@ -77,6 +77,8 @@ public:
 signals:
     void askingChanged();
     void mounted(const QString &path);
+    // A host's share is mounted next, in place of the host asked for.
+    void sharePicked(const QString &uri);
     void failed(const QString &error);
 
 private:
@@ -87,6 +89,7 @@ private:
     // Lists what the mount at `location` holds, to offer its shares.
     void browse(GFile *location);
     void offer(const QList<Share> &shares);
+    void mountShare(const QString &uri);
 
     GMountOperation *m_operation = nullptr;
     bool m_verified = false;

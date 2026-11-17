@@ -115,7 +115,14 @@ struct MounterCallbacks {
     static void read(GObject *source, GAsyncResult *result, gpointer data) {
         auto *listing = static_cast<Listing *>(data);
         auto *enumerator = G_FILE_ENUMERATOR(source);
-        GList *infos = g_file_enumerator_next_files_finish(enumerator, result, nullptr);
+        GError *error = nullptr;
+        GList *infos = g_file_enumerator_next_files_finish(enumerator, result, &error);
+        // A server gone partway through isn't the end of its list: a list
+        // cut short would be offered as all it shares.
+        if (error) {
+            listing->error = QString::fromUtf8(error->message);
+            g_error_free(error);
+        }
         for (GList *at = infos; at; at = at->next) {
             auto *info = G_FILE_INFO(at->data);
             // Only what opens elsewhere: GVfs's browser lists each share
@@ -127,7 +134,7 @@ struct MounterCallbacks {
                                         QString::fromUtf8(target), bool(g_file_info_get_is_hidden(info))});
             }
         }
-        const bool more = infos && listing->mounter;
+        const bool more = infos && listing->mounter && listing->error.isEmpty();
         g_list_free_full(infos, g_object_unref);
         if (more) {
             g_file_enumerator_next_files_async(enumerator, 100, G_PRIORITY_DEFAULT, nullptr, MounterCallbacks::read,
@@ -244,7 +251,7 @@ void Mounter::offer(const QList<Share> &shares) {
     }
     // One share is the one to open; there's nothing to pick.
     if (shares.size() == 1) {
-        mount(shares.first().uri, m_verified);
+        mountShare(shares.first().uri);
         return;
     }
     m_picking = true;
@@ -254,6 +261,11 @@ void Mounter::offer(const QList<Share> &shares) {
         m_shareUris << share.uri;
     }
     setAsking(true);
+}
+
+void Mounter::mountShare(const QString &uri) {
+    emit sharePicked(uri);
+    mount(uri, m_verified);
 }
 
 void Mounter::providePassword(const QString &user, const QString &password) {
@@ -273,7 +285,7 @@ void Mounter::choose(int choice) {
     if (m_picking) {
         const QString uri = m_shareUris.value(choice);
         setAsking(false);
-        mount(uri, m_verified);
+        mountShare(uri);
         return;
     }
     if (!m_operation)

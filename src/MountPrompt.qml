@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 
 // GVfs's password request while connecting to another machine whose keys
@@ -68,18 +69,38 @@ FolioDialog {
     }
 
     // A host can share many folders, so they wrap rather than run off the
-    // card.
-    Flow {
+    // card, and past a few rows they scroll, keeping Cancel in the window.
+    Flickable {
+        id: shares
         visible: prompt.picking
         Layout.fillWidth: true
-        spacing: 10
-        Repeater {
-            model: prompt.picking ? prompt.mounter.choices : []
-            PlainButton {
-                required property string modelData
-                required property int index
-                text: modelData
-                onClicked: prompt.mounter.choose(index)
+        Layout.preferredHeight: Math.min(flow.implicitHeight, 240)
+        contentHeight: flow.implicitHeight
+        boundsBehavior: Flickable.StopAtBounds
+        clip: true
+        ScrollBar.vertical: FolioScrollBar { }
+
+        Flow {
+            id: flow
+            width: shares.width
+            spacing: 10
+            Repeater {
+                model: prompt.picking ? prompt.mounter.choices : []
+                PlainButton {
+                    required property string modelData
+                    required property int index
+                    text: modelData
+                    onClicked: prompt.mounter.choose(index)
+                    // Tabbed to below or above what's shown, it's scrolled to.
+                    onActiveFocusChanged: {
+                        if (!activeFocus)
+                            return
+                        if (y < shares.contentY)
+                            shares.contentY = y
+                        else if (y + height > shares.contentY + shares.height)
+                            shares.contentY = y + height - shares.height
+                    }
+                }
             }
         }
     }
