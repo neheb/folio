@@ -96,7 +96,7 @@ FocusScope {
         const paths = pane.selectedPaths()
         // On a USB stick or SD card too: a trash there is a hidden folder
         // that fills the drive, and other computers don't empty it.
-        if (pane.inTrash || fileOps.onRemovable(backend.path))
+        if (pane.inTrash || fileOps.onRemovable(paths))
             confirmDelete(paths)
         else
             fileOps.trash(paths)

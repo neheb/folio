@@ -5480,15 +5480,32 @@ private slots:
         Disk system = stick;
         system.mounts = {"/run/media/me/SYSTEM"};
         system.hintSystem = true;
-        const auto fake = fakeDisks({stick, internal, system});
+        const QList<Disk> disks{stick, internal, system};
+        QVERIFY(Disks::pluggedAt(disks, "/run/media/me/STICK"));
+        QVERIFY(!Disks::pluggedAt(disks, "/run/media/me/STICKS"));
+        QVERIFY(!Disks::pluggedAt(disks, "/run/media/me/DATA"));
+        QVERIFY(!Disks::pluggedAt(disks, "/run/media/me/SYSTEM"));
+        QVERIFY(!Disks::pluggedAt(disks, "/"));
+    }
+
+    void deletingGoesByTheFilesystemThatHoldsTheItem()
+    {
+        // A folder that's only named like the stick's, reached through a
+        // link on it, or mounted inside it, is on another drive: what's
+        // there goes to the trash, as do views' items and a selection
+        // reaching off the stick.
+        QTemporaryDir dir;
+        QDir(dir.path()).mkpath("stick");
+        QDir(dir.path()).mkpath("home/photos");
+        QVERIFY(QFile::link(dir.filePath("home"), dir.filePath("stick/home")));
+        Disk stick = sanDisk();
+        stick.mounts = {dir.filePath("stick")};
+        fakeDisks({stick});
         FileOps ops;
-        QVERIFY(ops.onRemovable("/run/media/me/STICK"));
-        QVERIFY(ops.onRemovable("/run/media/me/STICK/photos/a.jpg"));
-        QVERIFY(!ops.onRemovable("/run/media/me/STICKS/a.jpg"));
-        QVERIFY(!ops.onRemovable("/run/media/me/DATA/a.jpg"));
-        QVERIFY(!ops.onRemovable("/run/media/me/SYSTEM/a.jpg"));
-        QVERIFY(!ops.onRemovable(QDir::homePath()));
-        QVERIFY(!ops.onRemovable("recent:"));
+        QVERIFY(!ops.onRemovable({dir.filePath("stick/a.jpg")}));
+        QVERIFY(!ops.onRemovable({dir.filePath("stick/home/photos")}));
+        QVERIFY(!ops.onRemovable({"recent:"}));
+        QVERIFY(!ops.onRemovable({}));
     }
 
     void burningListsTheDrivesThatCanTakeTheImage()

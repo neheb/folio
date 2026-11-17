@@ -2133,14 +2133,14 @@ static QString unchanged(Disks &disks, const Disk &disk) {
     return diskWithId(disks, disk.identity) ? QString() : FileOps::tr("The drive was changed or removed.");
 }
 
-// Whether `path` (or the top of a filesystem, itself) is on the disk: a
-// file to burn, say, which burning would erase half way through reading it.
+// Whether the file at `path` is on the disk, which burning it would erase
+// half way through reading it.
 static bool holds(const Disk &disk, const QString &path) {
     const QFileInfo info(path);
     const QString absolute = info.absoluteFilePath(), canonical = info.canonicalFilePath();
     return std::any_of(disk.mounts.begin(), disk.mounts.end(), [&](const QString &root) {
         const QString under = root.endsWith('/') ? root : root + '/';
-        return absolute.startsWith(under) || canonical.startsWith(under) || absolute == root || canonical == root;
+        return absolute.startsWith(under) || canonical.startsWith(under);
     });
 }
 
@@ -2238,12 +2238,19 @@ void FileOps::format(const QString &id, const QString &label, const QString &typ
         Lane::Drive);
 }
 
-bool FileOps::onRemovable(const QString &path) const {
-    if (!path.startsWith('/'))
+bool FileOps::onRemovable(const QStringList &paths) const {
+    if (paths.isEmpty())
         return false;
-    const auto disks = Disks::instance()->list();
-    return std::any_of(disks.begin(), disks.end(), [&](const Disk &disk) {
-        return Disks::plugged(disk) && !disk.hintSystem && !Disks::holdsSystem(disk) && holds(disk, path);
+    const QList<Disk> disks = Disks::instance()->list();
+    return std::all_of(paths.begin(), paths.end(), [&](const QString &path) {
+        if (!path.startsWith('/'))
+            return false;
+        // What goes is the item in its folder, so it's that folder's
+        // filesystem, wherever links on the way lead, and not what a link
+        // points at. A path under a drive's mount can be another drive
+        // altogether (mounted inside it, or reached through a link).
+        const QString folder = QFileInfo(QFileInfo(path).absolutePath()).canonicalFilePath();
+        return !folder.isEmpty() && Disks::pluggedAt(disks, QStorageInfo(folder).rootPath());
     });
 }
 

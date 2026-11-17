@@ -95,6 +95,9 @@ public:
     // Whether the disk is plugged into the computer (a USB stick, an SD
     // card) rather than part of it.
     static bool plugged(const Disk &disk);
+    // Whether the filesystem mounted at `root` is on a disk plugged in
+    // that isn't the system's.
+    static bool pluggedAt(const QList<Disk> &disks, const QString &root);
 
     // How a person knows the disk: its maker and model ("SanDisk Ultra"),
     // or its label, and with its size ("SanDisk Ultra · 32 GB").

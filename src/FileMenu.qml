@@ -64,7 +64,7 @@ FolioMenu {
         if (!forItem && !forFiles)
             return
         canBurn = forItem && forFiles && !trashView && !forSelection && fileOps.canBurn(target.path)
-        removable = forItem && forFiles && !trashView && fileOps.onRemovable(folder)
+        removable = forItem && forFiles && !trashView && fileOps.onRemovable(paths)
         burnTargets = canBurn ? fileOps.burnTargets(target.path) : []
         // Submenus (Open With, Share, Burn) show only when they apply.
         // Menu makes their entries itself, so they're set here rather than

@@ -334,6 +334,12 @@ bool Disks::plugged(const Disk &disk) {
     return disk.removable || disk.bus == "usb" || disk.bus == "sdio" || disk.canPowerOff;
 }
 
+bool Disks::pluggedAt(const QList<Disk> &disks, const QString &root) {
+    return std::any_of(disks.begin(), disks.end(), [&](const Disk &disk) {
+        return disk.mounts.contains(root) && plugged(disk) && !disk.hintSystem && !holdsSystem(disk);
+    });
+}
+
 QString Disks::name(const Disk &disk) {
     // Card readers and cheap sticks report a placeholder for their maker.
     static const QStringList generic{"usb", "generic", "ata", "mass", "mass storage", "linux"};
