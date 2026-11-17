@@ -92,6 +92,9 @@ public:
     // (/, /boot, /home…), which no drive menu may touch.
     static bool isSystemMount(const QString &root);
     static bool holdsSystem(const Disk &disk);
+    // Whether the disk is plugged into the computer (a USB stick, an SD
+    // card) rather than part of it.
+    static bool plugged(const Disk &disk);
 
     // How a person knows the disk: its maker and model ("SanDisk Ultra"),
     // or its label, and with its size ("SanDisk Ultra · 32 GB").

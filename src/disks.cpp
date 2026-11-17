@@ -330,6 +330,10 @@ bool Disks::holdsSystem(const Disk &disk) {
     return disk.inUse || std::any_of(disk.mounts.begin(), disk.mounts.end(), isSystemMount);
 }
 
+bool Disks::plugged(const Disk &disk) {
+    return disk.removable || disk.bus == "usb" || disk.bus == "sdio" || disk.canPowerOff;
+}
+
 QString Disks::name(const Disk &disk) {
     // Card readers and cheap sticks report a placeholder for their maker.
     static const QStringList generic{"usb", "generic", "ata", "mass", "mass storage", "linux"};
@@ -358,8 +362,7 @@ QString Disks::title(const Disk &disk) {
 Disks::Fit Disks::fit(const Disk &disk, qint64 imageSize) {
     if (holdsSystem(disk) || disk.hintSystem || disk.readOnly || disk.optical || disk.size <= 0)
         return Unfit;
-    const bool plugged = disk.removable || disk.bus == "usb" || disk.bus == "sdio" || disk.canPowerOff;
-    if (!plugged)
+    if (!plugged(disk))
         return Unfit;
     return disk.size < imageSize ? TooSmall : Fits;
 }

@@ -24,6 +24,10 @@ FolioMenu {
     signal burnRequested(string path, var drive)
     // In the trash the menu is about getting things back, or letting go.
     readonly property bool trashView: fileOps.inTrash(folder)
+    // On a drive plugged in, Delete deletes for good after asking (see
+    // FileOps::onRemovable), asked of udisks as the menu opens.
+    property bool removable: false
+    readonly property bool noTrash: trashView || removable
     // Plugins' views list items, which only open.
     readonly property bool forFiles: !folder.startsWith("plugin:")
 
@@ -60,6 +64,7 @@ FolioMenu {
         if (!forItem && !forFiles)
             return
         canBurn = forItem && forFiles && !trashView && !forSelection && fileOps.canBurn(target.path)
+        removable = forItem && forFiles && !trashView && fileOps.onRemovable(folder)
         burnTargets = canBurn ? fileOps.burnTargets(target.path) : []
         // Submenus (Open With, Share, Burn) show only when they apply.
         // Menu makes their entries itself, so they're set here rather than
@@ -312,7 +317,8 @@ FolioMenu {
     // Moving to the trash and deleting for good are two things: Trash
     // (Delete) moves it there, where Restore in any file manager brings it
     // back, and with Shift held it becomes Delete… (Shift+Delete), which
-    // deletes for good after asking. In the trash there's only the second.
+    // deletes for good after asking. In the trash, and on a drive plugged
+    // in, there's only the second.
     property bool shifted: false
     // Shift can go down or up anywhere while the menu's open, so it's
     // checked a few times a second rather than through key events.
@@ -323,10 +329,10 @@ FolioMenu {
         onTriggered: fileMenu.shifted = fileOps.shiftHeld()
     }
     FolioMenuItem {
-        readonly property bool forGood: fileMenu.shifted || fileMenu.trashView
+        readonly property bool forGood: fileMenu.shifted || fileMenu.noTrash
         shown: fileMenu.forItem && fileMenu.forFiles
         text: forGood ? qsTr("Delete…") : qsTr("Trash")
-        keys: fileMenu.trashView ? "Delete" : forGood ? "Shift+Delete" : "Delete"
+        keys: fileMenu.noTrash ? "Delete" : forGood ? "Shift+Delete" : "Delete"
         onTriggered: forGood ? fileMenu.deleteRequested(fileMenu.paths) : fileOps.trash(fileMenu.paths)
     }
 }

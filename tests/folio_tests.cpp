@@ -5467,6 +5467,30 @@ private slots:
         QVERIFY(!ops.canBurn(dir.path()));
     }
 
+    void deletingOnARemovableDriveSkipsTheTrash()
+    {
+        // A stick or card plugged in has no trash for Delete to fill; the
+        // computer's own drives do, even one mounted under /run/media.
+        Disk stick = sanDisk();
+        Disk internal = sanDisk();
+        internal.block = "/org/freedesktop/UDisks2/block_devices/nvme1n1";
+        internal.bus.clear();
+        internal.removable = internal.canPowerOff = internal.ejectable = false;
+        internal.mounts = {"/run/media/me/DATA"};
+        Disk system = stick;
+        system.mounts = {"/run/media/me/SYSTEM"};
+        system.hintSystem = true;
+        const auto fake = fakeDisks({stick, internal, system});
+        FileOps ops;
+        QVERIFY(ops.onRemovable("/run/media/me/STICK"));
+        QVERIFY(ops.onRemovable("/run/media/me/STICK/photos/a.jpg"));
+        QVERIFY(!ops.onRemovable("/run/media/me/STICKS/a.jpg"));
+        QVERIFY(!ops.onRemovable("/run/media/me/DATA/a.jpg"));
+        QVERIFY(!ops.onRemovable("/run/media/me/SYSTEM/a.jpg"));
+        QVERIFY(!ops.onRemovable(QDir::homePath()));
+        QVERIFY(!ops.onRemovable("recent:"));
+    }
+
     void burningListsTheDrivesThatCanTakeTheImage()
     {
         QTemporaryDir dir;

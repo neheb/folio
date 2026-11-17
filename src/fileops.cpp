@@ -2133,14 +2133,14 @@ static QString unchanged(Disks &disks, const Disk &disk) {
     return diskWithId(disks, disk.identity) ? QString() : FileOps::tr("The drive was changed or removed.");
 }
 
-// Whether the file at `path` is on the disk, which burning it would erase
-// half way through reading it.
+// Whether `path` (or the top of a filesystem, itself) is on the disk: a
+// file to burn, say, which burning would erase half way through reading it.
 static bool holds(const Disk &disk, const QString &path) {
     const QFileInfo info(path);
     const QString absolute = info.absoluteFilePath(), canonical = info.canonicalFilePath();
     return std::any_of(disk.mounts.begin(), disk.mounts.end(), [&](const QString &root) {
         const QString under = root.endsWith('/') ? root : root + '/';
-        return absolute.startsWith(under) || canonical.startsWith(under);
+        return absolute.startsWith(under) || canonical.startsWith(under) || absolute == root || canonical == root;
     });
 }
 
@@ -2236,6 +2236,15 @@ void FileOps::format(const QString &id, const QString &label, const QString &typ
                 emit notice(tr("Formatted %1.").arg(drive));
         },
         Lane::Drive);
+}
+
+bool FileOps::onRemovable(const QString &path) const {
+    if (!path.startsWith('/'))
+        return false;
+    const auto disks = Disks::instance()->list();
+    return std::any_of(disks.begin(), disks.end(), [&](const Disk &disk) {
+        return Disks::plugged(disk) && !disk.hintSystem && !Disks::holdsSystem(disk) && holds(disk, path);
+    });
 }
 
 bool FileOps::canBurn(const QString &path) const {
