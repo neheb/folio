@@ -80,6 +80,9 @@ public:
     virtual QString open(const Disk &disk, int *fd) = 0;
     // Lets the disk go for good, so it's safe to pull out.
     virtual QString eject(const Disk &disk) = 0;
+    // Where the filesystem holding `folder` (a canonical path) is mounted,
+    // from the system's mount table.
+    virtual QString mountOf(const QString &folder);
 
     // udisks' objects as GetManagedObjects lists them: object path, then
     // interface (without "org.freedesktop.UDisks2."), then its properties.

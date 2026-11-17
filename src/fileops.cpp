@@ -2241,7 +2241,8 @@ void FileOps::format(const QString &id, const QString &label, const QString &typ
 bool FileOps::onRemovable(const QStringList &paths) const {
     if (paths.isEmpty())
         return false;
-    const QList<Disk> disks = Disks::instance()->list();
+    const auto udisks = Disks::instance();
+    const QList<Disk> disks = udisks->list();
     return std::all_of(paths.begin(), paths.end(), [&](const QString &path) {
         if (!path.startsWith('/'))
             return false;
@@ -2250,7 +2251,7 @@ bool FileOps::onRemovable(const QStringList &paths) const {
         // points at. A path under a drive's mount can be another drive
         // altogether (mounted inside it, or reached through a link).
         const QString folder = QFileInfo(QFileInfo(path).absolutePath()).canonicalFilePath();
-        return !folder.isEmpty() && Disks::pluggedAt(disks, QStorageInfo(folder).rootPath());
+        return !folder.isEmpty() && Disks::pluggedAt(disks, udisks->mountOf(folder));
     });
 }
 

@@ -8,6 +8,7 @@
 #include <QFileInfo>
 #include <QLocale>
 #include <QMutex>
+#include <QStorageInfo>
 #include <algorithm>
 #include <fcntl.h>
 
@@ -332,6 +333,10 @@ bool Disks::holdsSystem(const Disk &disk) {
 
 bool Disks::plugged(const Disk &disk) {
     return disk.removable || disk.bus == "usb" || disk.bus == "sdio" || disk.canPowerOff;
+}
+
+QString Disks::mountOf(const QString &folder) {
+    return QStorageInfo(folder).rootPath();
 }
 
 bool Disks::pluggedAt(const QList<Disk> &disks, const QString &root) {

@@ -126,6 +126,17 @@ public:
         return {};
     }
     QString eject(const Disk &disk) override { return made("eject " + disk.block, "eject"); }
+    // Folders standing in for mount points, with where each is said to be
+    // mounted (a temporary folder is under /tmp, a system mount); what's
+    // outside them all is on "/".
+    QMap<QString, QString> mountPoints;
+    QString mountOf(const QString &folder) override {
+        QString found;
+        for (auto it = mountPoints.begin(); it != mountPoints.end(); ++it)
+            if ((folder == it.key() || folder.startsWith(it.key() + '/')) && it.key().size() > found.size())
+                found = it.key();
+        return found.isEmpty() ? QStringLiteral("/") : mountPoints.value(found);
+    }
 
 private:
     QString made(const QString &call, const QString &method) {
@@ -5490,20 +5501,31 @@ private slots:
 
     void deletingGoesByTheFilesystemThatHoldsTheItem()
     {
-        // A folder that's only named like the stick's, reached through a
-        // link on it, or mounted inside it, is on another drive: what's
-        // there goes to the trash, as do views' items and a selection
-        // reaching off the stick.
+        // What's on the stick skips the trash, a link on it included (it's
+        // the link that goes). What's reached through a link on it, or on
+        // a drive mounted inside it, is elsewhere and goes to the trash, as
+        // do views' items and a selection reaching off the stick.
         QTemporaryDir dir;
-        QDir(dir.path()).mkpath("stick");
-        QDir(dir.path()).mkpath("home/photos");
-        QVERIFY(QFile::link(dir.filePath("home"), dir.filePath("stick/home")));
+        const QString root = QFileInfo(dir.path()).canonicalFilePath();
+        QDir(root).mkpath("stick/photos");
+        QDir(root).mkpath("stick/inner/docs");
+        QDir(root).mkpath("home/photos");
+        QVERIFY(QFile::link(root + "/home", root + "/stick/home"));
         Disk stick = sanDisk();
-        stick.mounts = {dir.filePath("stick")};
-        fakeDisks({stick});
+        Disk inner = sanDisk();
+        inner.block = "/org/freedesktop/UDisks2/block_devices/nvme1n1";
+        inner.bus.clear();
+        inner.removable = inner.canPowerOff = inner.ejectable = false;
+        inner.mounts = {"/run/media/me/inner"};
+        const auto fake = fakeDisks({stick, inner});
+        fake->mountPoints = {{root + "/stick", "/run/media/me/STICK"}, {root + "/stick/inner", "/run/media/me/inner"}};
         FileOps ops;
-        QVERIFY(!ops.onRemovable({dir.filePath("stick/a.jpg")}));
-        QVERIFY(!ops.onRemovable({dir.filePath("stick/home/photos")}));
+        QVERIFY(ops.onRemovable({root + "/stick/a.jpg"}));
+        QVERIFY(ops.onRemovable({root + "/stick/photos", root + "/stick/photos/b.jpg"}));
+        QVERIFY(ops.onRemovable({root + "/stick/home"}));
+        QVERIFY(!ops.onRemovable({root + "/stick/home/photos"}));
+        QVERIFY(!ops.onRemovable({root + "/stick/inner/docs"}));
+        QVERIFY(!ops.onRemovable({root + "/stick/a.jpg", root + "/home/photos"}));
         QVERIFY(!ops.onRemovable({"recent:"}));
         QVERIFY(!ops.onRemovable({}));
     }
