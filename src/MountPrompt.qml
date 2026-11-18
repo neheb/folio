@@ -90,6 +90,10 @@ FolioDialog {
                     required property string modelData
                     required property int index
                     text: modelData
+                    // A name wider than the card is shortened in its
+                    // middle, so shares alike at the start still differ.
+                    width: Math.min(implicitWidth, shares.width)
+                    elide: Text.ElideMiddle
                     onClicked: prompt.mounter.choose(index)
                     // Tabbed to below or above what's shown, it's scrolled to.
                     onActiveFocusChanged: {
